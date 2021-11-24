@@ -1,14 +1,17 @@
+import { PrismaClient } from '@prisma/client';
+
 import { exec } from 'child_process';
-import { exceptions } from 'winston';
 import { logger as lg } from './logger';
 import { bombay12 as bom12, columbus5 as col5 } from './seeds';
+
+const prisma = new PrismaClient();
 
 lg.info('Starting monitor');
 setInterval(() => {
   main().catch((err) => {
     lg.error(`An error occurred: ${err.toString()}`);
   });
-}, 10000);
+}, 30000);
 main().catch((err) => {
   lg.error(`An error occurred: ${err.toString()}`);
 });
@@ -24,11 +27,11 @@ async function main() {
   await run(col5, c);
 }
 
-function run(nodes: string[], net: string) {
+async function run(nodes: string[], net: string) {
   let pms = [];
   for (let i = 0; i < nodes.length; i++) {
     let entry = nodes[i];
-    let [_nodeId, addr] = entry.trim().split('@');
+    let [nodeId, addr] = entry.trim().split('@');
     if (!addr) {
       throw new Error(`No address found at entry ${i} for ${net}.`);
     }
@@ -39,9 +42,25 @@ function run(nodes: string[], net: string) {
     if (!port) {
       throw new Error(`No port specified for entry ${i} for ${net}.`);
     }
+    // Create the node entry in DB if not already.
+    let node = await prisma.node.findUnique({
+      where: {
+        id: nodeId,
+      },
+    });
+    if (!node) {
+      await prisma.node.create({
+        data: {
+          id: nodeId,
+        },
+      });
+    }
+
     pms.push(
       new Promise((resolve) => {
-        exec(`nc -z ${ip} ${port} -w 5`, (err, stdout, stderr) => {
+        exec(`nc -z ${ip} ${port} -w 5`, async (err, stdout, stderr) => {
+          let success = false;
+
           let out = `Pinging ${addr}`;
           if (err) {
             out += `\n    Error: ${err.message}`;
@@ -49,9 +68,18 @@ function run(nodes: string[], net: string) {
             out += `\n    Error: ${stderr}`;
           } else if (stdout) {
             out += `\n    OK: ${stdout}`;
+            success = true;
           } else {
             out += ` OK`;
+            success = true;
           }
+
+          await prisma.ping.create({
+            data: {
+              nodeId,
+              success,
+            },
+          });
           console.info(out);
           resolve(out);
         });
