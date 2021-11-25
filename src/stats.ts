@@ -1,5 +1,6 @@
 import { Ping, PrismaClient } from '@prisma/client';
 import { EOL } from 'os';
+import yargs from 'yargs';
 
 import { bombay12 as bom, columbus5 as col } from './seeds';
 
@@ -10,6 +11,17 @@ const C_NODE = 0;
 const C_PING = 1;
 const C_TIME = 2;
 
+const argv = yargs(process.argv.slice(2))
+  .options({
+    c: {
+      alias: 'chain',
+      choices: ['bom', 'col'],
+      demandOption: true,
+      describe: 'The chain to retrieve the seed nodes for.',
+    },
+  })
+  .parseSync();
+
 let maxNode = HEADERS[C_NODE].length;
 let maxPing = HEADERS[C_PING].length;
 let maxTime = '100.00%'.length;
@@ -19,7 +31,16 @@ main().catch((err) => {
 });
 
 async function main() {
-  let results = await calc(bom);
+  let nodes = null;
+  if (argv.c === 'col') {
+    nodes = col;
+  } else if (argv.c === 'bom') {
+    nodes = bom;
+  } else {
+    // return statement needed to compile.
+    return;
+  }
+  let results = await calc(nodes);
   print(results);
 }
 
