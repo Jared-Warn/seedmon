@@ -11,7 +11,7 @@ setInterval(() => {
   main().catch((err) => {
     lg.error(`An error occurred: ${err.toString()}`);
   });
-}, 1800000);
+}, 3600);
 main().catch((err) => {
   lg.error(`An error occurred: ${err.toString()}`);
 });
